@@ -1,40 +1,28 @@
-#include <omp.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <omp.h>
 
-int main (int argc, char *argv[])
+int main ()
 {
-    const int N = 20;
-    int nthreads, threadid, i;
-    double a[N], b[N], c[N];
+    const int n = 30;
+    int   i,chunk;
+    double a[n], b[n], result = 0.0;
+    double results[10];
 
-    // Initialize
-    for (i=0; i < N; i++) {
-        a[i] = 1.0*i;
-        b[i] = 2.0*i;
+    /* Some initializations */
+    chunk = 5;
+    for (i=0; i < n; i++) {
+        a[i] = i * 3.14;
+        b[i] = i * 6.67;
+        results[i] = 0.0;
     }
 
-    int chunk = 3;
-
-#pragma omp parallel shared(a,b,c,nthreads,chunk) private(i,threadid)
-    {
-        threadid = omp_get_thread_num();
-        if (threadid == 0) {
-            nthreads = omp_get_num_threads();
-            printf("Number of threads = %d\n", nthreads);
+#pragma omp parallel for default(shared) private(i) schedule(static,chunk) reduction(+:results[:10])
+    for (i=0; i < n; i++){
+        int j;
+        for (j=0; j < n; j++){
+            ++results[j];
         }
-        printf(" My threadid %d\n",threadid);
+    }
 
-#pragma omp for schedule(static,chunk)
-        for (i=0; i<N; i++) {
-            c[i] = a[i] + b[i];
-            printf(" Thread id: %d working on index %d\n",threadid,i);
-        }
-
-    } // join
-
-    printf(" TEST c[19] = %g\n",c[19]);
-
-    return 0;
+    printf("Final result= %f\n",result);
 }
-

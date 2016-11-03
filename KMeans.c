@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
-#include <ctype.h>
 #include <unistd.h>
 #include <math.h>
 #include <float.h>
@@ -19,6 +18,11 @@ char *pointFile;
 char *centerFile;
 char *resultsFile;
 
+double euclidean_distance(double *points1, double* points2, int offset1,
+                          int offset2, int dim);
+void addToSum(double *points, int pointOffset, double *sums, int nearestCenter, int dimension);
+void resetToZero(double *array, int length);
+void resetToZeroInt(int *array, int length);
 
 int main(int argc, int **argv[]){
 
@@ -28,12 +32,23 @@ int main(int argc, int **argv[]){
     int localNumPoints;
     double *centers = malloc(sizeof(double) * numCenters * dimension);
 
+    int *centerCountsTotal = malloc((sizeof(int))*numCenters);
+    double *centerSumsTotal = malloc((sizeof(double))*numCenters*dimension);
+
+    resetToZero(centerSumsTotal,numCenters*dimension);
+    resetToZeroInt(centerCountsTotal,numCenters);
+
 #pragma omp parallel private(myid)
     {
         numproc = omp_get_num_threads();
         myid = omp_get_thread_num();
         localNumPoints = numPoints/numproc;
         double *localPoints =  malloc(sizeof(double) * localNumPoints * dimension);
+        int *centerCounts = malloc((sizeof(int))*numCenters);
+        double *centerSums = malloc((sizeof(double))*numCenters*dimension);
+
+        resetToZero(centerSums,numCenters*dimension);
+        resetToZeroInt(centerCounts,numCenters);
 
         if(myid == 0){
             printf("Reading centers");
@@ -53,9 +68,37 @@ int main(int argc, int **argv[]){
         int i;
         for(i = 0; i < localNumPoints; ++i){
             int points_offset = i * dimension;
-            
+            int nearest_center = find_nearest_center(localPoints, centers, numCenters,
+                                                       dimension, points_offset);
+            ++centerCounts[nearest_center];
+            addToSum(localPoints, points_offset, centerSums, nearest_center, dimension);
+
+        }
+
+        free()
+        #pragma omp critical
+        {
+            int j;
+            for (j = 0; j < numCenters; ++j) {
+                centerCountsTotal[j] += centerCounts[j];
+                int k;
+                for (k = 0; k < dimension; ++k) {
+                    centerSumsTotal[j*dimension + k] = centerSums[j*dimension + k];
+                }
+            }
         }
     }
+
+
+    int i;
+    int sum = 0;
+    for(i = 0; i < numCenters; ++i){
+        printf("Number of points for center %d is %d \n",i,centerCountsTotal[i]);
+        sum += centerCountsTotal[i];
+    }
+    printf("Number of total points is %d \n",sum);
+
+
 
 
     return 0;
@@ -73,6 +116,26 @@ double euclidean_distance(double *points1, double* points2, int offset1,
     return sqrt(d);
 }
 
+void addToSum(double *points, int pointOffset, double *sums, int nearestCenter, int dimension){
+    int i;
+    for (i = 0; i < dimension; ++i) {
+        sums[nearestCenter*dimension + i] = points[pointOffset + i];
+    }
+}
+void resetToZero(double *array, int length) {
+    int i;
+    for (i = 0; i < length; ++i) {
+        array[i] = 0.0;
+    }
+}
+
+void resetToZeroInt(int *array, int length) {
+    int i;
+    for (i = 0; i < length; ++i) {
+        array[i] = 0;
+    }
+}
+
 int find_nearest_center(double *points, double *centers, int num_centers,
                          int dim, int points_offset) {
     double min_dist = DBL_MAX;
@@ -80,7 +143,7 @@ int find_nearest_center(double *points, double *centers, int num_centers,
     int i;
     for (i = 0; i < num_centers; ++i) {
         double dist = euclidean_distance(points, centers, points_offset,
-                                         i * dim, dim);
+                                         i * dimension, dimension);
         if (dist < min_dist) {
             min_dist = dist;
             min_dist_idx = i;
