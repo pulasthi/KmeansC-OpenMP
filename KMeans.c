@@ -51,7 +51,7 @@ int main(int argc, int **argv[]){
         resetToZeroInt(centerCounts,numCenters);
 
         if(myid == 0){
-            printf("Reading centers");
+            //printf("Reading centers");
             FILE *c = fopen(centerFile, "rb");
             fread(centers, sizeof(double), numCenters * dimension, c);
             fclose(c);
@@ -59,44 +59,91 @@ int main(int argc, int **argv[]){
 
         int startIdx = myid*localNumPoints;
         FILE *f = fopen(pointFile, "rb");
-        printf("Reading points %d %d\n", myid, startIdx);
+//        printf("Reading points %d %d\n", myid, startIdx);
 
         fseek(f, startIdx * dimension * sizeof(double), SEEK_SET);
         fread(localPoints, sizeof(double), localNumPoints * dimension, f);
+        fclose(f);
+
+        while(numIteration > 0){
+            if(myid == 0){
+                int i = 0;
+                for(i = 0; i < numCenters; ++i){
+                    printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
+                }
+                printf("\n\n");
+
+            }
+            int i;
+            for(i = 0; i < localNumPoints; ++i){
+                int points_offset = i * dimension;
+                int nearest_center = find_nearest_center(localPoints, centers, numCenters,
+                                                         dimension, points_offset);
+                ++centerCounts[nearest_center];
+                addToSum(localPoints, points_offset, centerSums, nearest_center, dimension);
+
+            }
 
 
-        int i;
-        for(i = 0; i < localNumPoints; ++i){
-            int points_offset = i * dimension;
-            int nearest_center = find_nearest_center(localPoints, centers, numCenters,
-                                                       dimension, points_offset);
-            ++centerCounts[nearest_center];
-            addToSum(localPoints, points_offset, centerSums, nearest_center, dimension);
-
-        }
-
-        free()
-        #pragma omp critical
-        {
-            int j;
-            for (j = 0; j < numCenters; ++j) {
-                centerCountsTotal[j] += centerCounts[j];
-                int k;
-                for (k = 0; k < dimension; ++k) {
-                    centerSumsTotal[j*dimension + k] = centerSums[j*dimension + k];
+            #pragma omp critical
+            {
+                int j;
+                for (j = 0; j < numCenters; ++j) {
+                    centerCountsTotal[j] += centerCounts[j];
+                    int k;
+                    for (k = 0; k < dimension; ++k) {
+                        centerSumsTotal[j*dimension + k] += centerSums[j*dimension + k];
+                    }
                 }
             }
+
+
+            #pragma omp barrier
+            if(myid == 0){
+                numIteration -= 1;
+                int j;
+                for (j = 0; j < numCenters; ++j) {
+                    int k;
+                    for (k = 0; k < dimension; ++k) {
+                        centers[j*dimension + k] = centerSumsTotal[j*dimension + k]/centerCountsTotal[j];
+                    }
+                }
+
+                if(myid == 0){
+                    int i = 0;
+                    int sum = 0;
+                    for(i = 0; i < numCenters; ++i){
+                        printf("centerCountsTotal %d x value %d \n",i,centerCountsTotal[i]);
+                        sum += centerCountsTotal[i];
+                    }
+                    printf("Number of total points is %d \n",sum);
+                    printf("\n\n");
+
+                }
+                resetToZero(centerSumsTotal,numCenters*dimension);
+                resetToZeroInt(centerCountsTotal,numCenters);
+            }
+
+
+
+            #pragma omp barrier
+            resetToZero(centerSums,numCenters*dimension);
+            resetToZeroInt(centerCounts,numCenters);
         }
+
     }
 
 
     int i;
     int sum = 0;
-    for(i = 0; i < numCenters; ++i){
-        printf("Number of points for center %d is %d \n",i,centerCountsTotal[i]);
-        sum += centerCountsTotal[i];
-    }
-    printf("Number of total points is %d \n",sum);
+//    for(i = 0; i < numCenters; ++i){
+//        printf("Number of points for center %d is %d \n",i,centerCountsTotal[i]);
+//        sum += centerCountsTotal[i];
+//    }
+//    for(i = 0; i < numCenters; ++i){
+//        printf("center %d x value %f \n",i,centers[i*dimension]);
+//    }
+//    printf("Number of total points is %d \n",sum);
 
 
 
@@ -119,7 +166,7 @@ double euclidean_distance(double *points1, double* points2, int offset1,
 void addToSum(double *points, int pointOffset, double *sums, int nearestCenter, int dimension){
     int i;
     for (i = 0; i < dimension; ++i) {
-        sums[nearestCenter*dimension + i] = points[pointOffset + i];
+        sums[nearestCenter*dimension + i] += points[pointOffset + i];
     }
 }
 void resetToZero(double *array, int length) {
