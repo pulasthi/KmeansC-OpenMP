@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <math.h>
 #include <float.h>
+#include <time.h>
+#include <jmorecfg.h>
+
 
 int numPoints;
 int numCenters;
@@ -25,10 +28,12 @@ void resetToZero(double *array, int length);
 void resetToZeroInt(int *array, int length);
 
 int main(int argc, int **argv[]){
+    boolean PrintResults = TRUE;
 
     int numproc, myid;
     int ret = parse_args(argc,argv);
-
+    printf("######################################## Starting Kmeans ########################################\n");
+    clock_t start = clock(), diff;
     int localNumPoints;
     double *centers = malloc(sizeof(double) * numCenters * dimension);
 
@@ -46,12 +51,11 @@ int main(int argc, int **argv[]){
         double *localPoints =  malloc(sizeof(double) * localNumPoints * dimension);
         int *centerCounts = malloc((sizeof(int))*numCenters);
         double *centerSums = malloc((sizeof(double))*numCenters*dimension);
-
         resetToZero(centerSums,numCenters*dimension);
         resetToZeroInt(centerCounts,numCenters);
 
         if(myid == 0){
-            //printf("Reading centers");
+            printf("Reading centers \n");
             FILE *c = fopen(centerFile, "rb");
             fread(centers, sizeof(double), numCenters * dimension, c);
             fclose(c);
@@ -59,21 +63,13 @@ int main(int argc, int **argv[]){
 
         int startIdx = myid*localNumPoints;
         FILE *f = fopen(pointFile, "rb");
-//        printf("Reading points %d %d\n", myid, startIdx);
+        printf("Reading points %d %d\n", myid, startIdx);
 
         fseek(f, startIdx * dimension * sizeof(double), SEEK_SET);
         fread(localPoints, sizeof(double), localNumPoints * dimension, f);
         fclose(f);
 
         while(numIteration > 0){
-            if(myid == 0){
-                int i = 0;
-                for(i = 0; i < numCenters; ++i){
-                    printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
-                }
-                printf("\n\n");
-
-            }
             int i;
             for(i = 0; i < localNumPoints; ++i){
                 int points_offset = i * dimension;
@@ -108,18 +104,6 @@ int main(int argc, int **argv[]){
                         centers[j*dimension + k] = centerSumsTotal[j*dimension + k]/centerCountsTotal[j];
                     }
                 }
-
-                if(myid == 0){
-                    int i = 0;
-                    int sum = 0;
-                    for(i = 0; i < numCenters; ++i){
-                        printf("centerCountsTotal %d x value %d \n",i,centerCountsTotal[i]);
-                        sum += centerCountsTotal[i];
-                    }
-                    printf("Number of total points is %d \n",sum);
-                    printf("\n\n");
-
-                }
                 resetToZero(centerSumsTotal,numCenters*dimension);
                 resetToZeroInt(centerCountsTotal,numCenters);
             }
@@ -133,21 +117,41 @@ int main(int argc, int **argv[]){
 
     }
 
-
+    diff = clock() - start;
+    int msec = diff * 1000 / CLOCKS_PER_SEC;
+    printf("Time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
     int i;
     int sum = 0;
-//    for(i = 0; i < numCenters; ++i){
-//        printf("Number of points for center %d is %d \n",i,centerCountsTotal[i]);
-//        sum += centerCountsTotal[i];
-//    }
-//    for(i = 0; i < numCenters; ++i){
-//        printf("center %d x value %f \n",i,centers[i*dimension]);
-//    }
-//    printf("Number of total points is %d \n",sum);
+
+    for(i = 0; i < numCenters; ++i){
+        printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
+    }
+    printf("######################################## Ending Kmeans ########################################\n");
+
+    if(PrintResults == TRUE){
+        int localNumPoints = numPoints;
+        double *localPoints =  malloc(sizeof(double) * numPoints * dimension);
+        int startIdx = 0;
+        FILE *fall = fopen(pointFile, "rb");
+        FILE *fout;
+        fout = fopen("/home/pulasthi/ClionProjects/hpc/assigments/hpcproject/data/ouput.txt", "w+");
 
 
+        printf("Reading points %d %d\n", myid, startIdx);
 
+        fseek(fall, startIdx * dimension * sizeof(double), SEEK_SET);
+        fread(localPoints, sizeof(double), localNumPoints * dimension, fall);
+        fclose(fall);
 
+        for(i = 0; i < localNumPoints; ++i){
+            int points_offset = i * dimension;
+            int nearest_center = find_nearest_center(localPoints, centers, numCenters,
+                                                     dimension, points_offset);
+
+            fprintf(fout, "%d %f %f %f %d %d\n",i, localPoints[i*dimension],localPoints[i*dimension + 1], localPoints[i*dimension + 2], nearest_center ,nearest_center);
+        }
+
+    }
     return 0;
 }
 
