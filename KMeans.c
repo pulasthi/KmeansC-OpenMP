@@ -128,9 +128,9 @@ int main(int argc, int **argv[]){
     int i;
     int sum = 0;
 
-    for(i = 0; i < numCenters; ++i){
-        printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
-    }
+//    for(i = 0; i < numCenters; ++i){
+//        printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
+//    }
     free(centers);
     free(centerCountsTotal);
     free(centerSumsTotal);
