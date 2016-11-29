@@ -146,9 +146,9 @@ int main(int argc, int **argv[]){
         fout = fopen(resultsFile, "w+");
 
 
-        printf("Reading points %d %d\n", myid, startIdx);
+       // printf("Reading points %d %d\n", myid, startIdx);
 
-        fseek(fall, startIdx * dimension * sizeof(double), SEEK_SET);
+        //fseek(fall, startIdx * dimension * sizeof(double), SEEK_SET);
         fread(localPoints, sizeof(double), localNumPoints * dimension, fall);
         fclose(fall);
 
@@ -161,6 +161,7 @@ int main(int argc, int **argv[]){
         }
 
         free(localPoints);
+        fclose(fout);
 
 
     }
