@@ -28,7 +28,7 @@ void resetToZero(double *array, int length);
 void resetToZeroInt(int *array, int length);
 
 int main(int argc, int **argv[]){
-    boolean PrintResults = FALSE;
+    boolean PrintResults = TRUE;
 
     int numproc, myid;
     int ret = parse_args(argc,argv);
@@ -143,7 +143,7 @@ int main(int argc, int **argv[]){
         int startIdx = 0;
         FILE *fall = fopen(pointFile, "rb");
         FILE *fout;
-        fout = fopen("/home/pulasthi/ClionProjects/hpc/assigments/hpcproject/data/ouput.txt", "w+");
+        fout = fopen(resultsFile, "w+");
 
 
         printf("Reading points %d %d\n", myid, startIdx);
