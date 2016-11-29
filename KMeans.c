@@ -28,7 +28,7 @@ void resetToZero(double *array, int length);
 void resetToZeroInt(int *array, int length);
 
 int main(int argc, int **argv[]){
-    boolean PrintResults = TRUE;
+    boolean PrintResults = FALSE;
 
     int numproc, myid;
     int ret = parse_args(argc,argv);
@@ -115,6 +115,11 @@ int main(int argc, int **argv[]){
             resetToZeroInt(centerCounts,numCenters);
         }
 
+        free(localPoints);
+        free(centerSums);
+        free(centerCounts);
+
+
     }
 
     diff = clock() - start;
@@ -126,6 +131,10 @@ int main(int argc, int **argv[]){
     for(i = 0; i < numCenters; ++i){
         printf("centers %d x  y z value %f %f %f \n",i,centers[i*dimension],centers[i*dimension+1],centers[i*dimension+2]);
     }
+    free(centers);
+    free(centerCountsTotal);
+    free(centerSumsTotal);
+
     printf("######################################## Ending Kmeans ########################################\n");
 
     if(PrintResults == TRUE){
@@ -150,6 +159,9 @@ int main(int argc, int **argv[]){
 
             fprintf(fout, "%d %f %f %f %d %d\n",i, localPoints[i*dimension],localPoints[i*dimension + 1], localPoints[i*dimension + 2], nearest_center ,nearest_center);
         }
+
+        free(localPoints);
+
 
     }
     return 0;
