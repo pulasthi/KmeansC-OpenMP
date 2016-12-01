@@ -41,89 +41,83 @@ int main(int argc, int **argv[]){
 
     int *centerCountsTotal = malloc((sizeof(int))*numCenters);
     double *centerSumsTotal = malloc((sizeof(double))*numCenters*dimension);
+    double *localPoints =  malloc(sizeof(double) * numPoints * dimension);
 
     resetToZero(centerSumsTotal,numCenters*dimension);
     resetToZeroInt(centerCountsTotal,numCenters);
 
+    printf("Reading centers \n");
+    FILE *c = fopen(centerFile, "rb");
+    fread(centers, sizeof(double), numCenters * dimension, c);
+    fclose(c);
+
+    FILE *f = fopen(pointFile, "rb");
+
+    printf("Reading points \n");
+    fread(localPoints, sizeof(double), numPoints * dimension, f);
+    fclose(f);
+    while(numIteration > 0) {
 #pragma omp parallel private(myid)
-    {
-        numproc = omp_get_num_threads();
-        myid = omp_get_thread_num();
-        localNumPoints = numPoints/numproc;
-        double *localPoints =  malloc(sizeof(double) * localNumPoints * dimension);
-        int *centerCounts = malloc((sizeof(int))*numCenters);
-        double *centerSums = malloc((sizeof(double))*numCenters*dimension);
-        resetToZero(centerSums,numCenters*dimension);
-        resetToZeroInt(centerCounts,numCenters);
+        {
 
-        if(myid == 0){
-            printf("Reading centers \n");
-            FILE *c = fopen(centerFile, "rb");
-            fread(centers, sizeof(double), numCenters * dimension, c);
-            fclose(c);
-        }
+            numproc = omp_get_num_threads();
+            myid = omp_get_thread_num();
+            localNumPoints = numPoints / numproc;
+            int *centerCounts = malloc((sizeof(int)) * numCenters);
+            double *centerSums = malloc((sizeof(double)) * numCenters * dimension);
+            resetToZero(centerSums, numCenters * dimension);
+            resetToZeroInt(centerCounts, numCenters);
 
-        int startIdx = myid*localNumPoints;
-        FILE *f = fopen(pointFile, "rb");
-        printf("Reading points %d %d\n", myid, startIdx);
+            int globalOffset = myid * localNumPoints * dimension;
 
-        fseek(f, startIdx * dimension * sizeof(double), SEEK_SET);
-        fread(localPoints, sizeof(double), localNumPoints * dimension, f);
-        fclose(f);
-
-        while(numIteration > 0){
             int i;
-            for(i = 0; i < localNumPoints; ++i){
+            for (i = 0; i < localNumPoints; ++i) {
                 int points_offset = i * dimension;
                 int nearest_center = find_nearest_center(localPoints, centers, numCenters,
-                                                         dimension, points_offset);
+                                                         dimension, points_offset + globalOffset);
+
                 ++centerCounts[nearest_center];
-                addToSum(localPoints, points_offset, centerSums, nearest_center, dimension);
+                addToSum(localPoints, points_offset + globalOffset, centerSums, nearest_center, dimension);
 
             }
 
-
-            #pragma omp critical
+#pragma omp critical
             {
                 int j;
                 for (j = 0; j < numCenters; ++j) {
                     centerCountsTotal[j] += centerCounts[j];
                     int k;
                     for (k = 0; k < dimension; ++k) {
-                        centerSumsTotal[j*dimension + k] += centerSums[j*dimension + k];
+                        centerSumsTotal[j * dimension + k] += centerSums[j * dimension + k];
                     }
                 }
             }
 
 
-            #pragma omp barrier
-            if(myid == 0){
+#pragma omp barrier
+            if (myid == 0) {
                 numIteration -= 1;
                 int j;
                 for (j = 0; j < numCenters; ++j) {
                     int k;
                     for (k = 0; k < dimension; ++k) {
-                        centers[j*dimension + k] = centerSumsTotal[j*dimension + k]/centerCountsTotal[j];
+                        centers[j * dimension + k] = centerSumsTotal[j * dimension + k] / centerCountsTotal[j];
                     }
                 }
-                resetToZero(centerSumsTotal,numCenters*dimension);
-                resetToZeroInt(centerCountsTotal,numCenters);
+                resetToZero(centerSumsTotal, numCenters * dimension);
+                resetToZeroInt(centerCountsTotal, numCenters);
             }
 
 
+#pragma omp barrier
+            resetToZero(centerSums, numCenters * dimension);
+            resetToZeroInt(centerCounts, numCenters);
 
-            #pragma omp barrier
-            resetToZero(centerSums,numCenters*dimension);
-            resetToZeroInt(centerCounts,numCenters);
+            free(centerSums);
+            free(centerCounts);
         }
-
-        free(localPoints);
-        free(centerSums);
-        free(centerCounts);
-
-
     }
-
+    free(localPoints);
     diff = clock() - start;
     int msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
@@ -148,7 +142,7 @@ int main(int argc, int **argv[]){
         fout = fopen(resultsFile, "w+");
 
 
-       // printf("Reading points %d %d\n", myid, startIdx);
+        // printf("Reading points %d %d\n", myid, startIdx);
 
         //fseek(fall, startIdx * dimension * sizeof(double), SEEK_SET);
         fread(localPoints, sizeof(double), localNumPoints * dimension, fall);
@@ -203,7 +197,7 @@ void resetToZeroInt(int *array, int length) {
 }
 
 int find_nearest_center(double *points, double *centers, int num_centers,
-                         int dim, int points_offset) {
+                        int dim, int points_offset) {
     double min_dist = DBL_MAX;
     int min_dist_idx = -1;
     int i;
@@ -252,10 +246,10 @@ int parse_args(int argc, char **argv) {
             default:
                 abort();
         }
-        printf("Program Arguments\n");
-        printf(
-                " n = %d\n d = %d\n k = %d\n m = %d\n o = %s\n c = %s\n p = %s\n b = %d\n",
-                numPoints, dimension, numCenters, numIteration, resultsFile, centerFile, pointFile, bindThreads);
+    printf("Program Arguments\n");
+    printf(
+            " n = %d\n d = %d\n k = %d\n m = %d\n o = %s\n c = %s\n p = %s\n b = %d\n",
+            numPoints, dimension, numCenters, numIteration, resultsFile, centerFile, pointFile, bindThreads);
 
     for (index = optind; index < argc; index++)
         printf("Non-option argument %s\n", argv[index]);
